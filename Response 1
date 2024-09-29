@@ -1,0 +1,74 @@
+using System;
+using System.IO;
+using ClosedXML.Excel;
+
+class Program
+{
+    static void Main()
+    {
+        // CSVファイルのパス
+        string csvFilePath = @"C:\path\to\your\file.csv";
+        // 保存するExcelファイルのパス
+        string excelFilePath = @"C:\path\to\your\file.xlsx";
+
+        // CSVファイルを読み込み
+        var csvLines = File.ReadAllLines(csvFilePath);
+
+        // 新しいExcelワークブックを作成
+        using (var workbook = new XLWorkbook())
+        {
+            // Sheet1を追加してCSVの内容を記載
+            var sheet1 = workbook.Worksheets.Add("Sheet1");
+
+            // CSVデータをSheet1に書き込む
+            for (int rowIndex = 0; rowIndex < csvLines.Length; rowIndex++)
+            {
+                var csvRow = csvLines[rowIndex].Split(',');
+
+                // CSVの各セルをSheet1に追加
+                for (int colIndex = 0; colIndex < csvRow.Length; colIndex++)
+                {
+                    sheet1.Cell(rowIndex + 1, colIndex + 1).Value = csvRow[colIndex];
+                }
+            }
+
+            // Sheet2を追加
+            var sheet2 = workbook.Worksheets.Add("Sheet2");
+
+            // カラムヘッダーを使ってSheet1からSheet2にコピー
+            CopyColumnByHeader(sheet1, sheet2, "社員番号", "A"); // "社員番号"カラムをSheet2のカラムAへ
+            CopyColumnByHeader(sheet1, sheet2, "名前", "B");     // "名前"カラムをSheet2のカラムBへ
+            CopyColumnByHeader(sheet1, sheet2, "部署", "C");     // "部署"カラムをSheet2のカラムCへ
+            CopyColumnByHeader(sheet1, sheet2, "役職", "D");     // "役職"カラムをSheet2のカラムDへ
+
+            // Excelファイルを保存
+            workbook.SaveAs(excelFilePath);
+        }
+
+        Console.WriteLine("CSVファイルがExcelに変換され、カラムが移動されました！");
+    }
+
+    // カラムヘッダーを使ってコラムをコピーするヘルパーメソッド
+    static void CopyColumnByHeader(IXLWorksheet fromSheet, IXLWorksheet toSheet, string header, string toColumn)
+    {
+        // ヘッダー（例えば "社員番号"）がある行を特定（通常1行目）
+        var headerRow = 1;
+
+        // ヘッダー名が一致するカラムを検索
+        var fromColumn = fromSheet.Row(headerRow).Cells().FirstOrDefault(c => c.Value.ToString() == header)?.Address.ColumnNumber;
+
+        if (fromColumn.HasValue)
+        {
+            // データをコピー（ヘッダー行を除く）
+            var lastRow = fromSheet.Column(fromColumn.Value).CellsUsed().Count();
+            for (int row = headerRow + 1; row <= lastRow; row++)
+            {
+                toSheet.Cell(row, toColumn).Value = fromSheet.Cell(row, fromColumn.Value).Value;
+            }
+        }
+        else
+        {
+            Console.WriteLine($"カラム '{header}' が見つかりませんでした。");
+        }
+    }
+}
