@@ -1,0 +1,83 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using ClosedXML.Excel;
+
+class Program
+{
+    static void Main()
+    {
+        // 依頼マスターファイルのパス
+        string masterFilePath = @"C:\path\to\依頼マスター.xlsx";
+        // 別表ファイルのパス
+        string betsuFilePath = @"C:\path\to\別表.xlsx";
+        
+        // 別表の全件数（例として100件）
+        int totalItems = 100;
+
+        // 依頼マスターと別表を読み込む
+        using (var masterWorkbook = new XLWorkbook(masterFilePath))
+        using (var betsuWorkbook = new XLWorkbook(betsuFilePath))
+        {
+            var masterSheet = masterWorkbook.Worksheet(1); // 依頼マスター
+            var betsuSheet = betsuWorkbook.Worksheet(1);   // 別表
+
+            // 別表データの全件をリストとして取得（1行目をヘッダーと仮定）
+            var betsuData = new List<string[]>();
+            for (int row = 2; row <= totalItems + 1; row++)
+            {
+                var rowData = betsuSheet.Row(row).Cells().Select(c => c.GetString()).ToArray();
+                betsuData.Add(rowData);
+            }
+
+            // 依頼マスターをループして割合に基づいてデータを分割
+            int currentIndex = 0;
+            int lastRow = masterSheet.LastRowUsed().RowNumber();
+            
+            for (int row = 2; row <= lastRow; row++)
+            {
+                // Bカラムの割合を取得（例: "20%", "30%"）
+                string ratioText = masterSheet.Cell(row, 2).GetString().Replace("%", "");
+                if (!int.TryParse(ratioText, out int ratio))
+                {
+                    Console.WriteLine($"無効な割合が検出されました: {ratioText}");
+                    continue;
+                }
+
+                // 割合に基づく件数を計算
+                int itemCount = (totalItems * ratio) / 100;
+
+                // 分割するデータを取得
+                var subsetData = betsuData.Skip(currentIndex).Take(itemCount).ToList();
+                currentIndex += itemCount;
+
+                // 分割したデータを別のファイルとして保存
+                SaveSubsetToFile(subsetData, $"依頼_{ratioText}パーセント.xlsx");
+            }
+        }
+
+        Console.WriteLine("データの分割とファイル保存が完了しました！");
+    }
+
+    // 分割されたデータをExcelファイルに保存するメソッド
+    static void SaveSubsetToFile(List<string[]> subsetData, string fileName)
+    {
+        using (var workbook = new XLWorkbook())
+        {
+            var sheet = workbook.AddWorksheet("データ");
+
+            // データを書き込む（1行目にヘッダーがあると仮定）
+            for (int row = 1; row <= subsetData.Count; row++)
+            {
+                for (int col = 0; col < subsetData[row - 1].Length; col++)
+                {
+                    sheet.Cell(row, col + 1).Value = subsetData[row - 1][col];
+                }
+            }
+
+            // ファイルを保存
+            workbook.SaveAs(fileName);
+        }
+    }
+}
